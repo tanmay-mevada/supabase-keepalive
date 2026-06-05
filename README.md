@@ -1,4 +1,4 @@
-# supabase-keepalive
+# Supabase KeepAlive
 
 Automatically keeps your Supabase free tier project alive by pinging the database every few days via GitHub Actions.
 
