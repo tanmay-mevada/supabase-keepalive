@@ -1,0 +1,56 @@
+
+# Name displayed in the GitHub Actions tab
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # Runs at 09:00 UTC every Monday (1) and Thursday (4)
+    # This ensures the Supabase project receives
+    # database activity before the 7-day inactivity limit.
+    - cron: '0 9 * * 1,4'
+
+  # Allows the workflow to be run manually
+  # from the GitHub Actions interface.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    # Use GitHub's hosted Ubuntu runner
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping Supabase
+
+        # Repository secrets used for authentication.
+        # Configure these under:
+        # Settings → Secrets and variables → Actions
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+        run: |
+          # Send a POST request to the keep_alive table.
+          # The request inserts a record, which counts
+          # as database activity and prevents pausing.
+          #
+          # curl flags:
+          # -s              Silent mode
+          # -o /dev/null    Ignore response body
+          # -w              Output only HTTP status code
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${SUPABASE_URL}/rest/v1/keep_alive" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{"pinged_at": "now()"}')
+
+          # Any 2xx response indicates success.
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
+            echo "Yay! Supabase is alive!"
+          else
+            # Print the returned status code and
+            # mark the workflow as failed.
+            echo "Uh oh! Ping failed — status $RESPONSE"
+            exit 1
+          fi
